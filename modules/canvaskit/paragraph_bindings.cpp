@@ -9,6 +9,14 @@
 #include "include/core/SkPictureRecorder.h"
 #include "include/core/SkString.h"
 
+// 🐺
+#include "include/core/SkTypeface.h"
+#include "include/core/SkCanvas.h"
+#include "include/core/SkCanvasVirtualEnforcer.h"
+#include "include/core/SkBlender.h"
+#include "include/utils/SkNoDrawCanvas.h"
+#include "src/base/SkUTF.h"
+
 #include "modules/skparagraph/include/DartTypes.h"
 #include "modules/skparagraph/include/Paragraph.h"
 #include "modules/skparagraph/include/TextStyle.h"
@@ -469,6 +477,12 @@ JSArray GetShapedLines(para::Paragraph& self) {
 
         jrun.set("flags",    info->flags);
 
+        // 🐺
+        auto typeface = info->font.getTypeface();
+        SkString familyName;
+        typeface->getFamilyName(&familyName);
+        jrun.set("familyName", emscripten::val(familyName.c_str()));
+
 // TODO: figure out how to set a wrapped sk_sp<SkTypeface>
 //        jrun.set("typeface", info->font.getTypeface());
         jrun.set("typeface",    emscripten::val::null());
@@ -522,9 +536,342 @@ JSArray UnresolvedCodepoints(para::Paragraph& self) {
     return result;
 }
 
+// 🐺
+class WolfCanvas: public SkCanvasVirtualEnforcer<SkNoDrawCanvas> {
+public:
+    JSArray jCommands = emscripten::val::array();
+
+    WolfCanvas(): SkCanvasVirtualEnforcer<SkNoDrawCanvas>(9999, 9999) {
+        jCommands = emscripten::val::array();
+    }
+
+    virtual void onDrawTextBlob(const SkTextBlob* blob, SkScalar x, SkScalar y,
+                                const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawTextBlob"));
+
+        SkColor4f paintColor = paint.getColor4f();
+        float color[4] = {
+            paintColor.fR,
+            paintColor.fG,
+            paintColor.fB,
+            paintColor.fA
+        };
+        Float32Array colorArray = MakeTypedArray(4, color);
+        m.set("color", colorArray);
+
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawPaint(const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawPaint"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawBehind(const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawBehind"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawRect(const SkRect& rect, const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawRect"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawRRect(const SkRRect& rrect, const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawRRect"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawDRRect(const SkRRect& outer, const SkRRect& inner, const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawDRRect"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawOval(const SkRect& rect, const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawOval"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawArc(const SkRect& rect, SkScalar startAngle, SkScalar sweepAngle,
+                           bool useCenter, const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawArc"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawPath(const SkPath& path, const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawPath"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawRegion(const SkRegion& region, const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawRegion"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawGlyphRunList(const sktext::GlyphRunList& glyphRunList, const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawGlyphRunList"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawPatch(const SkPoint cubics[12], const SkColor colors[4],
+                           const SkPoint texCoords[4], SkBlendMode mode, const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawPatch"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawPoints(PointMode mode, size_t count, const SkPoint pts[],
+                              const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawPoints"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawImage2(const SkImage*, SkScalar dx, SkScalar dy, const SkSamplingOptions&,
+                              const SkPaint*) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawImage2"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawImageRect2(const SkImage*, const SkRect& src, const SkRect& dst,
+                                  const SkSamplingOptions&, const SkPaint*, SrcRectConstraint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawImageRect2"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawImageLattice2(const SkImage*, const Lattice&, const SkRect& dst,
+                                     SkFilterMode, const SkPaint*) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawImageLattice2"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawAtlas2(const SkImage*, const SkRSXform[], const SkRect src[],
+                              const SkColor[], int count, SkBlendMode, const SkSamplingOptions&,
+                              const SkRect* cull, const SkPaint*) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawAtlas2"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawEdgeAAImageSet2(const ImageSetEntry imageSet[], int count,
+                                       const SkPoint dstClips[], const SkMatrix preViewMatrices[],
+                                       const SkSamplingOptions&, const SkPaint*,
+                                       SrcRectConstraint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawEdgeAAImageSet2"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawVerticesObject(const SkVertices* vertices, SkBlendMode mode,
+                                      const SkPaint& paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawVerticesObject"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawMesh(const SkMesh&, sk_sp<SkBlender>, const SkPaint&) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawMesh"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawAnnotation(const SkRect& rect, const char key[], SkData* value) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawAnnotation"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawShadowRec(const SkPath&, const SkDrawShadowRec&) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawShadowRec"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawDrawable(SkDrawable* drawable, const SkMatrix* matrix) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawDrawable"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawPicture(const SkPicture* picture, const SkMatrix* matrix,
+                               const SkPaint* paint) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawPicture"));
+        jCommands.call<void>("push", m);
+    }
+
+    virtual void onDrawEdgeAAQuad(const SkRect& rect, const SkPoint clip[4], QuadAAFlags aaFlags,
+                                  const SkColor4f& color, SkBlendMode mode) override {
+        JSObject m = emscripten::val::object();
+        m.set("command", emscripten::val("onDrawEdgeAAQuad"));
+        jCommands.call<void>("push", m);
+    }
+};
+
+bool isAllWhitespace(std::string& text) {
+    for (char c : text) {
+        if (!std::isspace(c)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+JSObject GetParagraphInfo(para::Paragraph& pa, JSString jtext) {
+    // Iterate through the lines extracting the runs
+    JSArray lines = GetShapedLines(pa);
+    auto linesLength = lines["length"].as<size_t>();
+    JSArray runs = emscripten::val::array();
+    for (size_t i = 0; i < linesLength; i++) {
+        auto line = lines[i];
+        auto top = line["top"].as<float>();
+        auto bottom = line["bottom"].as<float>();
+        auto baseline = line["baseline"].as<float>();
+        auto lineRuns = line["runs"];
+        auto lineRunsLength = lineRuns["length"].as<size_t>();
+        for (size_t j = 0; j < lineRunsLength; j++) {
+            auto run = lineRuns[j];
+            run.set("top", top);
+            run.set("bottom", bottom);
+            run.set("baseline", baseline);
+            runs.call<void>("push", run);
+        }
+    }
+
+    JSObject m = emscripten::val::object();
+
+    std::string text = jtext.as<std::string>();
+    m.set("text", emscripten::val(text));
+    WolfCanvas* wc = new WolfCanvas();
+    pa.paint(wc, 0, 0);
+
+    JSArray commands = wc->jCommands;
+
+    // The number of commands should be the same as the number of runs
+    auto commandsLength = commands["length"].as<size_t>();
+    auto runsLength = runs["length"].as<size_t>();
+    if (commandsLength != runsLength) {
+        EM_ASM({
+            console.log("Number of commands does not match number of runs");
+        });
+        return emscripten::val::null();
+    }
+
+    // Iterate through the runs and commands simultaneously,
+    // setting the color of the run to the color of the command
+    for (size_t i = 0; i < commandsLength; i++) {
+        auto command = commands[i];
+        auto run = runs[i];
+        run.set("color", command["color"]);
+
+        auto offsets = run["offsets"];
+        auto offsetsLength = offsets["length"].as<size_t>();
+        auto runStartOffset = offsets[0].as<size_t>();
+        auto runEndOffset = offsets[offsetsLength - 1].as<size_t>();
+        auto isRtl = false;
+        if (runStartOffset > runEndOffset) {
+            std::swap(runStartOffset, runEndOffset);
+            isRtl = true;
+        }
+        // endOffset += 1;
+        JSArray range = emscripten::val::array();
+        range.call<void>("push", runStartOffset);
+        range.call<void>("push", runEndOffset);
+        run.set("range", range);
+        run.set("dir", emscripten::val(isRtl ? "rtl" : "ltr"));
+
+        auto positions = run["positions"].as<Float32Array>();
+
+        // Make the first two elements of `positions`:
+        // [x, y, x, y, x, y, ...]
+        // the x and y of `position`, which is also a Float32Array:
+        float src[] = { positions[0].as<float>(), positions[1].as<float>() };
+        auto position = MakeTypedArray(2, src);
+        run.set("position", position);
+
+        // // Extract the range from text and set it on the run
+        // auto runText = text.substr(startOffset, endOffset - startOffset);
+        // run.set("text", emscripten::val(runText));
+    }
+
+    // Extract just the range for each run
+    std::vector<JSArray> runRanges;
+    for (size_t i = 0; i < runsLength; i++) {
+        auto run = runs[i];
+        auto range = run["range"];
+        runRanges.push_back(range);
+    }
+
+    // Sort them by start offset
+    std::sort(runRanges.begin(), runRanges.end(), [](JSArray a, JSArray b) {
+        return a[0].as<size_t>() < b[0].as<size_t>();
+    });
+
+    // Make sure the end of each run is set correctly
+    for (size_t i = 0; i < runsLength - 1; i++) {
+        auto range = runRanges[i];
+        auto startOffset = range[0].as<size_t>();
+        auto endOffset = range[1].as<size_t>();
+        auto nextStartOffset = runRanges[i + 1][0].as<size_t>();
+        range.set(1, nextStartOffset);
+    }
+
+    // Set the last run's end to the end of the text
+    runRanges[runsLength - 1].set(1, text.length());
+
+    // For each run, extract the text and set it on the run
+    for (size_t i = 0; i < runsLength; i++) {
+        auto run = runs[i];
+        auto range = run["range"];
+        auto startOffset = range[0].as<size_t>();
+        auto endOffset = range[1].as<size_t>();
+        auto runText = text.substr(startOffset, endOffset - startOffset);
+        run.set("text", emscripten::val(runText));
+    }
+
+    // Find the indexes of all runs that are whitespace
+    std::vector<size_t> whitespaceIndexes;
+    for (size_t i = 0; i < runsLength; i++) {
+        auto run = runs[i];
+        auto runText = run["text"].as<std::string>();
+        if (isAllWhitespace(runText)) {
+            whitespaceIndexes.push_back(i);
+        }
+    }
+
+    // Remove all whitespace runs, from the end to the beginning
+    for (size_t i = whitespaceIndexes.size(); i > 0; i--) {
+        runs.call<void>("splice", whitespaceIndexes[i - 1], 1);
+    }
+
+    // m.set("commands", commands);
+    m.set("lines", lines);
+    m.set("runs", runs);
+    m.set("lineMetrics", GetLineMetrics(pa));
+
+    return m;
+}
+
 EMSCRIPTEN_BINDINGS(Paragraph) {
 
     class_<para::Paragraph>("Paragraph")
+        // 🐺
+        .function("getParagraphInfo", &GetParagraphInfo)
+
         .function("didExceedMaxLines", &para::Paragraph::didExceedMaxLines)
         .function("getAlphabeticBaseline", &para::Paragraph::getAlphabeticBaseline)
         .function("getGlyphPositionAtCoordinate", &para::Paragraph::getGlyphPositionAtCoordinate)
