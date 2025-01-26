@@ -808,6 +808,7 @@ export interface EnhancedGlyphRun extends GlyphRun {
   position: Point;          // position of the text run
   range: [number, number];  // start and end of the text range this run covers
   text: string;             // the text this run covers
+  dir: 'ltr' | 'rtl';       // direction of the text run
   top: number;              // top of the text run
   bottom: number;           // bottom of the text run
   baseline: number;         // baseline of the text run
