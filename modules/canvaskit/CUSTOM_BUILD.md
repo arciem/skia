@@ -20,7 +20,7 @@ python3 tools/build-custom-canvaskit.py build --output ../custom-canvaskit-next
 
 The upstream Make/compile targets manage their own ignored `build` and `out` products, including rebuilding static archives. The workflow never cleans a caller's output directory or writes into another application. `--source` can point to an independent checkout of the same baseline; only the three workflow files may differ from it.
 
-The output contains `canvaskit.js`, `canvaskit.wasm`, the tracked `index.d.ts`, and `BUILD.json` with source, dependency, toolchain and member identities. Archive metadata and a consuming package's ESM wrapper are separate concerns; this command does not publish a package or choose a consumer's module format.
+The output contains `canvaskit.js`, `canvaskit.wasm`, the tracked `index.d.ts`, and `BUILD.json` with source, dependency, toolchain and member identities. Caller `BUILD_DIR`, `EMCC_*` and `EM_*` settings are refused before synchronization or building. Other caller build flags are not inherited: only ordinary host path/locale/home settings and SDK-provided variables reach Make. The record separates the workflow Python from the actual Python, Make, GN, Ninja and SDK Node executables/versions used by the build environment. Archive metadata and a consuming package's ESM wrapper are separate concerns; this command does not publish a package or choose a consumer's module format.
 
 ## Checks
 

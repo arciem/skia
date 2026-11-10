@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import shutil
 import subprocess
 import sys
 
@@ -17,6 +18,14 @@ WORKFLOW_FILES = {
     "tools/test_build_custom_canvaskit.py",
     "modules/canvaskit/CUSTOM_BUILD.md",
 }
+
+
+def base_environment():
+    # Build settings must not inherit caller compiler flags, output roots or caches.
+    forbidden = [key for key in os.environ if key == "BUILD_DIR" or key.startswith(("EMCC_", "EM_"))]
+    if forbidden:
+        raise ValueError("Unexpected caller build environment: " + ", ".join(sorted(forbidden)))
+    return {key: os.environ[key] for key in ("HOME", "PATH", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE") if key in os.environ}
 
 
 def read_command(argv, cwd, env=None):
@@ -69,11 +78,11 @@ def sdk_environment(source):
         raise ValueError("SDK is absent; run setup first")
     raw = subprocess.check_output(
         ["/bin/bash", "-c", 'set -e; source "$1" >/dev/null 2>&1; env -0', "sdk-env", str(script)],
-        cwd=source,
+        cwd=source, env=base_environment(),
     )
     # Only SDK settings are collected; never persist or print the inherited environment.
     allowed = {"PATH", "EMSDK", "EM_CONFIG", "EMSDK_NODE", "EMSDK_PYTHON", "EMSDK_PY"}
-    env = dict(os.environ)
+    env = base_environment()
     for entry in raw.split(b"\0"):
         if b"=" in entry:
             key, value = entry.split(b"=", 1)
@@ -88,18 +97,30 @@ def sdk_environment(source):
 
 def build(mode, source, output):
     source, output = validate_paths(source, output)
+    clean_environment = base_environment()
     validate_source(source)
     if mode == "setup":
-        env = dict(os.environ, GIT_SYNC_DEPS_SKIP_EMSDK="1")
+        env = dict(clean_environment, GIT_SYNC_DEPS_SKIP_EMSDK="1")
         subprocess.run([sys.executable, str(source / "tools/git-sync-deps")], cwd=source, env=env, check=True)
         sdk = source / "third_party/externals/emsdk/emsdk.py"
         # SDK-local configuration only: no --permanent, --system, profile edits or global installs.
         for operation in ["install", "activate"]:
-            subprocess.run([sys.executable, str(sdk), operation, SDK_VERSION], cwd=source, check=True)
+            subprocess.run([sys.executable, str(sdk), operation, SDK_VERSION], cwd=source, env=clean_environment, check=True)
     inventory = dependencies(source)
     env, compiler = sdk_environment(source)
     subprocess.run(["make", "release"], cwd=source / "modules/canvaskit", env=env, check=True)
     validate_source(source)
+    tools = {}
+    for name, command, flag in [
+        ("python3", shutil.which("python3", path=env["PATH"]), "--version"),
+        ("make", shutil.which("make", path=env["PATH"]), "--version"),
+        ("gn", str(source / "bin/gn"), "--version"),
+        ("ninja", str(source / "third_party/ninja/ninja"), "--version"),
+        ("sdk_node", env.get("EMSDK_NODE"), "--version"),
+    ]:
+        if not command:
+            raise ValueError("Build tool is absent: " + name)
+        tools[name] = {"executable": command, "version": read_command([command, flag], source, env).splitlines()[0]}
     paths = {
         "canvaskit.js": source / "modules/canvaskit/build/canvaskit.js",
         "canvaskit.wasm": source / "modules/canvaskit/build/canvaskit.wasm",
@@ -114,7 +135,9 @@ def build(mode, source, output):
         "baseline": BASELINE,
         "workflow_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "mode": mode,
-        "python": sys.version.split()[0],
+        "workflow_python": sys.version.split()[0],
+        "build_tools": tools,
+        "environment": "Caller BUILD_DIR/EMCC_*/EM_* refused; only HOME/PATH/TMPDIR/LANG/LC_ALL/LC_CTYPE and SDK-provided settings reach the build.",
         "emscripten": compiler,
         "target": "make release (default WebGL build)",
         "dependencies": inventory,

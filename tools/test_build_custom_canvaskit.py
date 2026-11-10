@@ -69,6 +69,68 @@ class BuildGuards(unittest.TestCase):
             self.assertEqual(result[0]["revision"], "tag-object")
             self.assertEqual(command.call_args_list[0].args[0][-1], "tag-object^{commit}")
 
+    def test_dependency_revision_dirty_status_and_checkout_custody(self):
+        helper = {"parse_file_to_dict": lambda _: {"deps": {"dep": "https://example.invalid/source@pin"}}}
+        cases = [
+            (["expected", "different", ""], "clean DEPS revision"),
+            (["expected", "expected", " M tracked.cpp"], "clean DEPS revision"),
+            (["expected", "expected", "", str(Path(".").resolve())], "custody"),
+        ]
+        for replies, message in cases:
+            with self.subTest(message=message, replies=replies):
+                with patch.object(workflow.runpy, "run_path", return_value=helper), patch.object(workflow, "read_command", side_effect=replies):
+                    with self.assertRaisesRegex(ValueError, message):
+                        workflow.dependencies(Path("."))
+
+    def test_nonancestor_source_refuses(self):
+        error = workflow.subprocess.CalledProcessError(1, ["git", "merge-base"])
+        with patch.object(workflow, "read_command", side_effect=error) as command:
+            with self.assertRaises(workflow.subprocess.CalledProcessError):
+                workflow.validate_source(Path("."))
+            self.assertEqual(command.call_args.args[0][:3], ["git", "merge-base", "--is-ancestor"])
+
+    def test_untracked_engine_change_refuses(self):
+        with patch.object(workflow, "read_command", side_effect=["", "", "src/untracked.cpp"]):
+            with self.assertRaisesRegex(ValueError, "pinned baseline"):
+                workflow.validate_source(Path("."))
+
+    def test_workflow_only_source_changes_are_admitted(self):
+        with patch.object(workflow, "read_command", side_effect=["", "tools/build-custom-canvaskit.py", "modules/canvaskit/CUSTOM_BUILD.md"]):
+            workflow.validate_source(Path("."))
+
+    def test_absent_sdk_refuses(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "SDK is absent"):
+                workflow.sdk_environment(Path(folder))
+
+    def test_caller_output_and_compiler_overrides_refuse_before_commands(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder)
+            sentinel = source / "keep.a"
+            sentinel.write_text("original")
+            for key in ["BUILD_DIR", "EMCC_CFLAGS", "EM_CONFIG", "EM_CACHE"]:
+                with self.subTest(key=key), patch.dict(workflow.os.environ, {key: folder}), patch.object(workflow.subprocess, "check_output") as command:
+                    with self.assertRaisesRegex(ValueError, "caller build environment"):
+                        workflow.build("setup", source, source.parent / (source.name + "-output"))
+                    command.assert_not_called()
+                    self.assertEqual(sentinel.read_text(), "original")
+
+    def test_unselected_caller_build_flags_are_not_inherited(self):
+        with patch.dict(workflow.os.environ, {"CFLAGS": "unexpected", "MAKEFLAGS": "unexpected"}):
+            env = workflow.base_environment()
+            self.assertNotIn("CFLAGS", env)
+            self.assertNotIn("MAKEFLAGS", env)
+
+    def test_postbuild_source_change_prevents_output(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder)
+            output = source.parent / (source.name + "-output")
+            with patch.object(workflow, "validate_source", side_effect=[None, ValueError("pinned baseline moved")]), patch.object(workflow, "dependencies", return_value=[]), patch.object(workflow, "sdk_environment", return_value=({}, "version")), patch.object(workflow.subprocess, "run") as command:
+                with self.assertRaisesRegex(ValueError, "pinned baseline moved"):
+                    workflow.build("build", source, output)
+                command.assert_called_once()
+                self.assertFalse(output.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
