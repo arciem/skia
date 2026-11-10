@@ -57,6 +57,8 @@ def validate_source(source):
     untracked = set(read_command(["git", "ls-files", "--others", "--exclude-standard"], source).splitlines())
     if (changed | untracked) - WORKFLOW_FILES:
         raise ValueError("Source differs from the pinned baseline outside the custom source/build allowlist")
+    if read_command(["git", "status", "--porcelain"], source):
+        raise ValueError("Source checkout must be clean; commit tracked and untracked changes before building")
 
 
 def dependencies(source):

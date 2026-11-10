@@ -95,8 +95,15 @@ class BuildGuards(unittest.TestCase):
                 workflow.validate_source(Path("."))
 
     def test_workflow_only_source_changes_are_admitted(self):
-        with patch.object(workflow, "read_command", side_effect=["", "", "tools/build-custom-canvaskit.py", "modules/canvaskit/CUSTOM_BUILD.md"]):
+        with patch.object(workflow, "read_command", side_effect=["", "", "tools/build-custom-canvaskit.py", "", ""]):
             workflow.validate_source(Path("."))
+
+    def test_uncommitted_allowlisted_source_refuses(self):
+        for dirty in [" M modules/canvaskit/paragraph_bindings.cpp", "M  modules/canvaskit/npm_build/types/index.d.ts", "?? tools/package-custom-canvaskit.mjs"]:
+            with self.subTest(dirty=dirty), patch.object(workflow, "read_command", side_effect=["", "", "", "", dirty]) as command:
+                with self.assertRaisesRegex(ValueError, "checkout must be clean"):
+                    workflow.validate_source(Path("."))
+                self.assertEqual(command.call_args.args[0], ["git", "status", "--porcelain"])
 
     def test_absent_sdk_refuses(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -1098,10 +1098,6 @@ export interface ManagedSkottieAnimation extends SkottieAnimation {
     setEditorCursorWeight(w: number): void;
 }
 
-export interface Hello {
-  message: string;
-}
-
 export interface ParagraphInfo {
   text: string;
   lines: ShapedLine[];
@@ -1115,8 +1111,7 @@ export interface ParagraphInfo {
  */
 export interface Paragraph extends EmbindObject<"Paragraph"> {
     // 🐺
-    hello(): Hello;
-    getParagraphInfo(text: string): ParagraphInfo;
+    getParagraphInfo(text: string): ParagraphInfo | null;
 
     didExceedMaxLines(): boolean;
     getAlphabeticBaseline(): number;
@@ -2736,7 +2731,7 @@ export interface PathBuilder extends EmbindObject<"SkPathBuilder"> {
      * with a line, forming a continuous loop.
      * Returns the modified path for easier chaining.
      */
-    close(): Path;
+    close(): PathBuilder;
 
     /**
      * Adds conic from last point towards (x1, y1), to (x2, y2), weighted by w.
