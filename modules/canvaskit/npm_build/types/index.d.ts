@@ -800,7 +800,10 @@ export interface Range {
  * to describe the location "after" the last glyph in the glyphs array.
  */
 export interface GlyphRun {
-    typeface: Typeface;     // currently set to null (temporary)
+    // 🐺
+    familyName: string;      // the name of the font family
+
+    typeface: null;         // custom contract: no caller-owned native Typeface handle
     size: number;
     fakeBold: boolean;
     fakeItalic: boolean;
@@ -809,6 +812,18 @@ export interface GlyphRun {
     positions: Float32Array;    // alternating x0, y0, x1, y1, ...
     offsets: Uint32Array;
     flags: number;              // see GlyphRunFlags
+}
+
+// 🐺
+export interface EnhancedGlyphRun extends GlyphRun {
+  color: Color;             // color of the text run
+  position: Point;          // position of the text run
+  range: [number, number];  // start and end of the text range this run covers
+  text: string;             // the text this run covers
+  dir: 'ltr' | 'rtl';       // direction of the text run
+  top: number;              // top of the text run
+  bottom: number;           // bottom of the text run
+  baseline: number;         // baseline of the text run
 }
 
 /**
@@ -1083,11 +1098,26 @@ export interface ManagedSkottieAnimation extends SkottieAnimation {
     setEditorCursorWeight(w: number): void;
 }
 
+export interface Hello {
+  message: string;
+}
+
+export interface ParagraphInfo {
+  text: string;
+  lines: ShapedLine[];
+  lineMetrics: LineMetrics[];
+  runs: EnhancedGlyphRun[];
+}
+
 /**
  * See Paragraph.h for more information on this class. This is only available if Paragraph has
  * been compiled in.
  */
 export interface Paragraph extends EmbindObject<"Paragraph"> {
+    // 🐺
+    hello(): Hello;
+    getParagraphInfo(text: string): ParagraphInfo;
+
     didExceedMaxLines(): boolean;
     getAlphabeticBaseline(): number;
 
